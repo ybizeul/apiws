@@ -14,9 +14,7 @@ func NewLogger(handlerToWrap http.Handler) *APIWSLogger {
 }
 
 func (a *APIWSLogger) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-
 	slog.Info("HTTP Request",
-		// slog.String("remote_ip", r.RemoteAddr),
 		slog.String("method", r.Method),
 		slog.String("path", r.URL.Path),
 	)

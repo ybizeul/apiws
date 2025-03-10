@@ -55,7 +55,7 @@ func New(staticUI fs.FS, templateData any) (*APIWS, error) {
 	}
 
 	if result.StaticUI != nil {
-		result.Mux.HandleFunc("GET /{path...}", func(w http.ResponseWriter, r *http.Request) {
+		staticFunc := func(w http.ResponseWriter, r *http.Request) {
 			_, err := fs.Stat(result.StaticUI, r.URL.Path[1:])
 			if err == nil {
 				if path.Ext(r.URL.Path) == ".html" {
@@ -80,10 +80,12 @@ func New(staticUI fs.FS, templateData any) (*APIWS, error) {
 					slog.Error("unable to execute template", slog.String("error", err.Error()))
 				}
 			}
-		})
+		}
+		result.Mux.Handle("GET /{path...}", logger.NewLogger(http.HandlerFunc(staticFunc)))
+		//result.Mux.HandleFunc("GET /{path...}", staticFunc)
 	}
 
-	result.AddPublicRoute("GET /auth", nil, func(w http.ResponseWriter, r *http.Request) {
+	result.AddRoute("GET /auth", nil, func(w http.ResponseWriter, r *http.Request) {
 		user, _ := auth.AuthForRequest(r)
 		response := struct {
 			User          string `json:"user"`
@@ -95,7 +97,7 @@ func New(staticUI fs.FS, templateData any) (*APIWS, error) {
 			LoginURL:      result.Authentication.LoginURL(),
 		}
 		_ = json.NewEncoder(w).Encode(response)
-	})
+	}, RouteOptions{AnonymousOK: true})
 
 	return result, nil
 }
@@ -108,36 +110,58 @@ func (a *APIWS) SetAuthentication(b authentication.Authentication) {
 // AddRoute adds a new route to the API Web Server. pattern is the URL pattern
 // to match. authenticators is a list of Authenticator to use to authenticate
 // the request. handlerFunc is the function to call when the route is matched.
-func (a *APIWS) AddRoute(pattern string, authenticator auth.AuthMiddleware, handlerFunc func(w http.ResponseWriter, r *http.Request)) {
-	j := auth.JWTAuthMiddleware{
-		HMACSecret: os.Getenv("JWT_SECRET"),
-	}
-	c := auth.ConfirmAuthenticator{Realm: "Hupload"}
-	a.Mux.Handle(pattern,
-		authenticator.Middleware(
-			j.Middleware(
-				c.Middleware(http.HandlerFunc(handlerFunc)))))
-}
-
-func (a *APIWS) AddPublicRoute(pattern string, authenticator auth.AuthMiddleware, handlerFunc func(w http.ResponseWriter, r *http.Request)) {
+func (a *APIWS) AddRoute(pattern string, authenticator auth.AuthMiddleware, handlerFunc func(w http.ResponseWriter, r *http.Request), args ...RouteOptions) {
 	j := auth.JWTAuthMiddleware{
 		HMACSecret: os.Getenv("JWT_SECRET"),
 	}
 	c := auth.ConfirmAuthenticator{Realm: "Hupload"}
 	o := auth.OpenAuthMiddleware{}
 
-	if authenticator == nil {
-		a.Mux.Handle(pattern,
-			j.Middleware(
-				o.Middleware(
-					c.Middleware(http.HandlerFunc(handlerFunc)))))
-	} else {
-		a.Mux.Handle(pattern,
-			authenticator.Middleware(
-				j.Middleware(
-					o.Middleware(
-						c.Middleware(http.HandlerFunc(handlerFunc))))))
+	b := c.Middleware(http.HandlerFunc(handlerFunc))
+
+	if len(args) > 0 {
+		if args[0].AnonymousOK {
+			b = o.Middleware(b)
+		}
 	}
+
+	b = j.Middleware(b)
+	if authenticator != nil {
+		b = authenticator.Middleware(b)
+	}
+
+	if len(args) == 0 || (len(args) > 0 && !args[0].DisableLogging) {
+		b = logger.NewLogger(b)
+	}
+
+	a.Mux.Handle(pattern, b)
+}
+
+func (a *APIWS) AddPublicRoute(pattern string, authenticator auth.AuthMiddleware, handlerFunc func(w http.ResponseWriter, r *http.Request), args ...RouteOptions) {
+	options := RouteOptions{AnonymousOK: true}
+	if len(args) > 0 && args[0].DisableLogging {
+		options.DisableLogging = true
+	}
+
+	a.AddRoute(pattern, authenticator, handlerFunc, options)
+	// j := auth.JWTAuthMiddleware{
+	// 	HMACSecret: os.Getenv("JWT_SECRET"),
+	// }
+	// c := auth.ConfirmAuthenticator{Realm: "Hupload"}
+	// o := auth.OpenAuthMiddleware{}
+
+	// if authenticator == nil {
+	// 	a.Mux.Handle(pattern,
+	// 		j.Middleware(
+	// 			o.Middleware(
+	// 				c.Middleware(http.HandlerFunc(handlerFunc)))))
+	// } else {
+	// 	a.Mux.Handle(pattern,
+	// 		authenticator.Middleware(
+	// 			j.Middleware(
+	// 				o.Middleware(
+	// 					c.Middleware(http.HandlerFunc(handlerFunc))))))
+	// }
 }
 
 // Start starts the API Web Server.
@@ -161,7 +185,7 @@ func (a *APIWS) Start() {
 			a.Mux.HandleFunc("GET /oidc", f)
 		}
 	}
-	err := http.ListenAndServe(fmt.Sprintf(":%d", a.HTTPPort), logger.NewLogger(a.Mux))
+	err := http.ListenAndServe(fmt.Sprintf(":%d", a.HTTPPort), a.Mux)
 	if err != nil {
 		slog.Error("unable to start http server", slog.String("error", err.Error()))
 	}
