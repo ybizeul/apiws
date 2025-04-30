@@ -85,7 +85,7 @@ func New(staticUI fs.FS, templateData any) (*APIWS, error) {
 		//result.Mux.HandleFunc("GET /{path...}", staticFunc)
 	}
 
-	result.AddRoute("GET /auth", nil, func(w http.ResponseWriter, r *http.Request) {
+	result.AddRoute("GET /auth", nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user, _ := auth.AuthForRequest(r)
 		response := struct {
 			User          string `json:"user"`
@@ -97,7 +97,7 @@ func New(staticUI fs.FS, templateData any) (*APIWS, error) {
 			LoginURL:      result.Authentication.LoginURL(),
 		}
 		_ = json.NewEncoder(w).Encode(response)
-	}, RouteOptions{AnonymousOK: true})
+	}), RouteOptions{AnonymousOK: true})
 
 	return result, nil
 }
@@ -110,14 +110,14 @@ func (a *APIWS) SetAuthentication(b authentication.Authentication) {
 // AddRoute adds a new route to the API Web Server. pattern is the URL pattern
 // to match. authenticators is a list of Authenticator to use to authenticate
 // the request. handlerFunc is the function to call when the route is matched.
-func (a *APIWS) AddRoute(pattern string, authenticator auth.AuthMiddleware, handlerFunc func(w http.ResponseWriter, r *http.Request), args ...RouteOptions) {
+func (a *APIWS) AddRoute(pattern string, authenticator auth.AuthMiddleware, handler http.Handler, args ...RouteOptions) {
 	j := auth.JWTAuthMiddleware{
 		HMACSecret: os.Getenv("JWT_SECRET"),
 	}
 	c := auth.ConfirmAuthenticator{Realm: "Hupload"}
 	o := auth.OpenAuthMiddleware{}
 
-	b := c.Middleware(http.HandlerFunc(handlerFunc))
+	b := c.Middleware(handler)
 
 	if len(args) > 0 {
 		if args[0].AnonymousOK {
@@ -137,13 +137,13 @@ func (a *APIWS) AddRoute(pattern string, authenticator auth.AuthMiddleware, hand
 	a.Mux.Handle(pattern, b)
 }
 
-func (a *APIWS) AddPublicRoute(pattern string, authenticator auth.AuthMiddleware, handlerFunc func(w http.ResponseWriter, r *http.Request), args ...RouteOptions) {
+func (a *APIWS) AddPublicRoute(pattern string, authenticator auth.AuthMiddleware, handler http.Handler, args ...RouteOptions) {
 	options := RouteOptions{AnonymousOK: true}
 	if len(args) > 0 && args[0].DisableLogging {
 		options.DisableLogging = true
 	}
 
-	a.AddRoute(pattern, authenticator, handlerFunc, options)
+	a.AddRoute(pattern, authenticator, handler, options)
 	// j := auth.JWTAuthMiddleware{
 	// 	HMACSecret: os.Getenv("JWT_SECRET"),
 	// }

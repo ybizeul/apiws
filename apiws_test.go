@@ -40,9 +40,9 @@ func makeAPI(staticUI fs.FS, templateData any) *APIWS {
 func TestSimpleAPI(t *testing.T) {
 	api := makeAPI(nil, nil)
 
-	api.AddPublicRoute("GET /", nil, func(w http.ResponseWriter, r *http.Request) {
+	api.AddPublicRoute("GET /", nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeSuccessJSON(w, map[string]string{"status": "ok"})
-	})
+	}))
 
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
@@ -89,9 +89,9 @@ func TestAuthAPI(t *testing.T) {
 
 	api := makeAPI(nil, nil)
 
-	api.AddRoute("GET /", authenticator, func(w http.ResponseWriter, r *http.Request) {
+	api.AddRoute("GET /", authenticator, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeSuccessJSON(w, map[string]string{"status": "ok"})
-	})
+	}))
 
 	var (
 		req *http.Request
