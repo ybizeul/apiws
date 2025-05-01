@@ -67,7 +67,7 @@ func New(staticUI fs.FS, templateData any) (*APIWS, error) {
 			}
 
 			// Requested URI is an actual static file
-			if path.Ext(r.URL.Path) == ".html" {
+			if path.Ext(relPath) == ".html" {
 				// Apply template if that's a .html file
 				tmpl, err := template.New(relPath).ParseFS(result.staticUI, relPath)
 				if err != nil {

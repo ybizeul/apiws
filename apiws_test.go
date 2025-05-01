@@ -135,49 +135,42 @@ func TestTemplate(t *testing.T) {
 		w   *httptest.ResponseRecorder
 	)
 
-	// Test template on existing page
-	req = httptest.NewRequest("GET", "/page.html", nil)
-
-	w = httptest.NewRecorder()
-
-	api.mux.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("Unexpected response code: %d", w.Code)
+	tests := []struct {
+		Path     string
+		Expected string
+	}{
+		{
+			Path:     "/page.html",
+			Expected: "My Wonderful API",
+		},
+		{
+			Path:     "/random.html",
+			Expected: "index My Wonderful API",
+		},
+		{
+			Path:     "/nothtml.txt",
+			Expected: "{{.Title}}",
+		},
+		{
+			Path:     "/randomPath",
+			Expected: "index My Wonderful API",
+		},
 	}
+	for _, test := range tests {
+		// Test template on existing page
+		req = httptest.NewRequest("GET", test.Path, nil)
 
-	if w.Body.String() != "My Wonderful API" {
-		t.Errorf("Unexpected response: %s", w.Body.String())
-	}
+		w = httptest.NewRecorder()
 
-	// Test template on non-existing page
-	req = httptest.NewRequest("GET", "/random.html", nil)
+		api.mux.ServeHTTP(w, req)
 
-	w = httptest.NewRecorder()
+		if w.Code != http.StatusOK {
+			t.Errorf("Unexpected response code: %d", w.Code)
+		}
 
-	api.mux.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("Unexpected response code: %d", w.Code)
-	}
-
-	if w.Body.String() != "index My Wonderful API" {
-		t.Errorf("Unexpected response: %s", w.Body.String())
-	}
-
-	// Test template on non-html content
-	req = httptest.NewRequest("GET", "/nothtml.txt", nil)
-
-	w = httptest.NewRecorder()
-
-	api.mux.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("Unexpected response code: %d", w.Code)
-	}
-
-	if w.Body.String() != "{{.Title}}" {
-		t.Errorf("Unexpected response: %s", w.Body.String())
+		if w.Body.String() != test.Expected {
+			t.Errorf("Unexpected response: %s (expected %s)", w.Body.String(), test.Expected)
+		}
 	}
 
 }
