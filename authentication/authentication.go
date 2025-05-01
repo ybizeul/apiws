@@ -22,7 +22,7 @@ type AuthStatus struct {
 // AuthenticationInterface must be implemented by the authentication backend
 type Authentication interface {
 	AuthenticateRequest(w http.ResponseWriter, r *http.Request) error
-	CallbackFunc(http.Handler) (func(w http.ResponseWriter, r *http.Request), bool)
+	Callback(h http.Handler) (http.Handler, string)
 	ShowLoginForm() bool
 	LoginURL() string
 }

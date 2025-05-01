@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
+	"net/url"
 	"slices"
 	"time"
 
@@ -15,15 +17,15 @@ import (
 	"golang.org/x/oauth2"
 )
 
-type AuthenticationOIDCConfig struct {
+type OIDCConfig struct {
 	ProviderURL  string `yaml:"provider_url"`
 	ClientID     string `yaml:"client_id"`
 	ClientSecret string `yaml:"client_secret"`
 	RedirectURL  string `yaml:"redirect_url"`
 }
 
-type AuthenticationOIDC struct {
-	Options AuthenticationOIDCConfig
+type OIDC struct {
+	Options OIDCConfig
 
 	Provider *oidc.Provider
 	Config   oauth2.Config
@@ -48,9 +50,9 @@ func setCallbackCookie(w http.ResponseWriter, r *http.Request, name, value strin
 	http.SetCookie(w, c)
 }
 
-func NewAuthenticationOIDC(o AuthenticationOIDCConfig) (*AuthenticationOIDC, error) {
+func NewOIDC(o OIDCConfig) (*OIDC, error) {
 	var err error
-	result := &AuthenticationOIDC{
+	result := &OIDC{
 		Options: o,
 	}
 
@@ -75,7 +77,7 @@ func NewAuthenticationOIDC(o AuthenticationOIDCConfig) (*AuthenticationOIDC, err
 	return result, nil
 }
 
-func (o *AuthenticationOIDC) AuthenticateRequest(w http.ResponseWriter, r *http.Request) error {
+func (o *OIDC) AuthenticateRequest(w http.ResponseWriter, r *http.Request) error {
 	state, err := randString(16)
 	if err != nil {
 		http.Error(w, "Internal error", http.StatusInternalServerError)
@@ -95,13 +97,11 @@ func (o *AuthenticationOIDC) AuthenticateRequest(w http.ResponseWriter, r *http.
 		return ErrAuthenticationRedirect
 	}
 
-	//http.Redirect(w, r, o.Config.AuthCodeURL(state, oidc.Nonce(nonce)), http.StatusFound)
-
 	return nil
 }
 
-func (o *AuthenticationOIDC) CallbackFunc(h http.Handler) (func(w http.ResponseWriter, r *http.Request), bool) {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (o *OIDC) Callback(h http.Handler) (http.Handler, string) {
+	f := func(w http.ResponseWriter, r *http.Request) {
 		var verifier = o.Provider.Verifier(&oidc.Config{ClientID: o.Options.ClientID})
 
 		// Verify state and errors.
@@ -167,18 +167,23 @@ func (o *AuthenticationOIDC) CallbackFunc(h http.Handler) (func(w http.ResponseW
 			}
 		}
 
-		// var rmessage json.RawMessage
-		// if err := idToken.Claims(&rmessage); err == nil {
-		// 	b, _ := json.MarshalIndent(rmessage, "", "    ")
-		// 	slog.Info("ID Token Claims: %s", slog.String("claims", string(b)))
-		// }
-
 		if claims.Username != "" {
 			ServeNextAuthenticated(claims.Username, h, w, r)
 			return
 		}
+
 		h.ServeHTTP(w, r)
-	}, true
+	}
+
+	hf := http.HandlerFunc(f)
+
+	url, err := url.Parse(o.Options.RedirectURL)
+	if err != nil {
+		slog.Error("Unable to parse redirect URL", "error", err)
+		return nil, ""
+	}
+
+	return hf, url.RequestURI()
 }
 
 func ServeNextAuthenticated(user string, next http.Handler, w http.ResponseWriter, r *http.Request) {
@@ -189,9 +194,9 @@ func ServeNextError(next http.Handler, err error, w http.ResponseWriter, r *http
 	ctx := context.WithValue(r.Context(), AuthStatusKey, AuthStatus{Authenticated: false, User: "", Error: err})
 	next.ServeHTTP(w, r.WithContext(ctx))
 }
-func (o *AuthenticationOIDC) ShowLoginForm() bool {
+func (o *OIDC) ShowLoginForm() bool {
 	return false
 }
-func (o *AuthenticationOIDC) LoginURL() string {
+func (o *OIDC) LoginURL() string {
 	return "/login"
 }

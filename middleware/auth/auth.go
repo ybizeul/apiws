@@ -29,31 +29,6 @@ func ServeNextAuthenticated(user string, next http.Handler, w http.ResponseWrite
 	s.Authenticated = true
 	ctx := context.WithValue(r.Context(), authentication.AuthStatusKey, s)
 	next.ServeHTTP(w, r.WithContext(ctx))
-
-	// if user == "" {
-	// 	next.ServeHTTP(w,
-	// 		r.WithContext(
-	// 			context.WithValue(
-	// 				r.Context(),
-	// 				AuthStatus,
-	// 				AuthStatusSuccess,
-	// 			),
-	// 		),
-	// 	)
-	// } else {
-	// 	next.ServeHTTP(w,
-	// 		r.WithContext(
-	// 			context.WithValue(
-	// 				context.WithValue(
-	// 					r.Context(),
-	// 					AuthStatus,
-	// 					AuthStatusSuccess),
-	// 				AuthUser,
-	// 				user,
-	// 			),
-	// 		),
-	// 	)
-	// }
 }
 
 // serveNextError adds a passes w and r to next middleware after adding

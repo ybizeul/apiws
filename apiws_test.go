@@ -31,7 +31,7 @@ func makeAPI(staticUI fs.FS, templateData any) *APIWS {
 		slog.Error("Error creating APIWS", slog.String("error", err.Error()))
 	}
 
-	if api == nil || api.Mux == nil {
+	if api == nil || api.mux == nil {
 		slog.Error("New() returned nil")
 	}
 
@@ -46,7 +46,7 @@ func TestSimpleAPI(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
-	api.Mux.ServeHTTP(w, req)
+	api.mux.ServeHTTP(w, req)
 
 	if w.Body.String() != "{\"status\":\"ok\"}\n" {
 		t.Errorf("Unexpected response: %s", w.Body.String())
@@ -69,8 +69,8 @@ func (a *testAuth) AuthenticateRequest(w http.ResponseWriter, r *http.Request) e
 	return errors.New("bad credentials")
 }
 
-func (o *testAuth) CallbackFunc(http.Handler) (func(w http.ResponseWriter, r *http.Request), bool) {
-	return nil, false
+func (o *testAuth) Callback(http.Handler) (http.Handler, string) {
+	return nil, ""
 }
 func (o *testAuth) ShowLoginForm() bool {
 	return false
@@ -103,7 +103,7 @@ func TestAuthAPI(t *testing.T) {
 
 	w = httptest.NewRecorder()
 
-	api.Mux.ServeHTTP(w, req)
+	api.mux.ServeHTTP(w, req)
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("Unexpected response code: %d", w.Code)
@@ -115,7 +115,7 @@ func TestAuthAPI(t *testing.T) {
 
 	w = httptest.NewRecorder()
 
-	api.Mux.ServeHTTP(w, req)
+	api.mux.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("Unexpected response code: %d", w.Code)
@@ -140,7 +140,7 @@ func TestTemplate(t *testing.T) {
 
 	w = httptest.NewRecorder()
 
-	api.Mux.ServeHTTP(w, req)
+	api.mux.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("Unexpected response code: %d", w.Code)
@@ -155,7 +155,7 @@ func TestTemplate(t *testing.T) {
 
 	w = httptest.NewRecorder()
 
-	api.Mux.ServeHTTP(w, req)
+	api.mux.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("Unexpected response code: %d", w.Code)
@@ -170,7 +170,7 @@ func TestTemplate(t *testing.T) {
 
 	w = httptest.NewRecorder()
 
-	api.Mux.ServeHTTP(w, req)
+	api.mux.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("Unexpected response code: %d", w.Code)

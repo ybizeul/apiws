@@ -10,11 +10,11 @@ import (
 )
 
 func TestBasicAuth(t *testing.T) {
-	c := authentication.FileAuthenticationConfig{
+	c := authentication.FileConfig{
 		Path: "basic_testdata/users.yml",
 	}
 
-	a, err := authentication.NewAuthenticationFile(c)
+	a, err := authentication.NewFile(c)
 
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
@@ -53,11 +53,11 @@ func TestBasicWrongCredentials(t *testing.T) {
 		Realm: "test",
 	}
 
-	c := authentication.FileAuthenticationConfig{
+	c := authentication.FileConfig{
 		Path: "basic_testdata/users.yml",
 	}
 
-	a, err := authentication.NewAuthenticationFile(c)
+	a, err := authentication.NewFile(c)
 
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
@@ -101,11 +101,11 @@ func TestBasicAuthNoCredentials(t *testing.T) {
 		Realm: "test",
 	}
 
-	c := authentication.FileAuthenticationConfig{
+	c := authentication.FileConfig{
 		Path: "basic_testdata/users.yml",
 	}
 
-	a, err := authentication.NewAuthenticationFile(c)
+	a, err := authentication.NewFile(c)
 
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)

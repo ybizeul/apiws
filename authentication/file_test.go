@@ -7,11 +7,11 @@ import (
 )
 
 func TestAuthentication(t *testing.T) {
-	c := FileAuthenticationConfig{
+	c := FileConfig{
 		Path: "file_testdata/users.yml",
 	}
 
-	a, err := NewAuthenticationFile(c)
+	a, err := NewFile(c)
 
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
@@ -46,11 +46,11 @@ func TestAuthentication(t *testing.T) {
 }
 
 func TestAuthenticationInexistantUsersFile(t *testing.T) {
-	c := FileAuthenticationConfig{
+	c := FileConfig{
 		Path: "file_testdata/users_inexistant.yml",
 	}
 
-	_, err := NewAuthenticationFile(c)
+	_, err := NewFile(c)
 
 	if !errors.Is(err, ErrAuthenticationMissingUsersFile) {
 		t.Errorf("Expected error, got nil")

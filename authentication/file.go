@@ -8,23 +8,23 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// AuthenticationFile takes users from a yaml file
+// File takes users from a yaml file
 // Example :
 // - username: admin
 //   password: $2y$10$ro2aBKU9jyqfokF2arnaEO3GKmAawnfLfEFq1dGuGl9CYEutrxGCa
 // - username: test
 //   password: $2y$10$ro2aBKU9jyqfokF2arnaEO3GKmAawnfLfEFq1dGuGl9CYEutrxGCa
 
-type FileAuthenticationConfig struct {
+type FileConfig struct {
 	Path string `yaml:"path"`
 }
 
-type AuthenticationFile struct {
-	Options FileAuthenticationConfig
+type File struct {
+	Options FileConfig
 }
 
-func NewAuthenticationFile(o FileAuthenticationConfig) (*AuthenticationFile, error) {
-	r := AuthenticationFile{
+func NewFile(o FileConfig) (*File, error) {
+	r := File{
 		Options: o,
 	}
 
@@ -40,7 +40,7 @@ func NewAuthenticationFile(o FileAuthenticationConfig) (*AuthenticationFile, err
 	return &r, nil
 }
 
-func (a *AuthenticationFile) AuthenticateRequest(w http.ResponseWriter, r *http.Request) error {
+func (a *File) AuthenticateRequest(w http.ResponseWriter, r *http.Request) error {
 	username, password, ok := r.BasicAuth()
 	if !ok {
 		return ErrAuthenticationMissingCredentials
@@ -78,14 +78,14 @@ func (a *AuthenticationFile) AuthenticateRequest(w http.ResponseWriter, r *http.
 	return ErrAuthenticationBadCredentials
 }
 
-func (o *AuthenticationFile) CallbackFunc(http.Handler) (func(w http.ResponseWriter, r *http.Request), bool) {
-	return nil, false
+func (o *File) Callback(http.Handler) (http.Handler, string) {
+	return nil, ""
 }
 
-func (o *AuthenticationFile) ShowLoginForm() bool {
+func (o *File) ShowLoginForm() bool {
 	return true
 }
 
-func (o *AuthenticationFile) LoginURL() string {
+func (o *File) LoginURL() string {
 	return "/"
 }

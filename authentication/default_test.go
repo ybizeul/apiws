@@ -7,7 +7,7 @@ import (
 )
 
 func TestDefaultAuthentication(t *testing.T) {
-	a := NewAuthenticationDefault()
+	a := NewBasic("admin", nil)
 
 	p := a.Password
 
