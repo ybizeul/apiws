@@ -98,17 +98,18 @@ func NewOIDC(config OIDCConfig) (*OIDC, error) {
 	}
 
 	//result.store = sessions.NewFilesystemStore("sessions", []byte(cAuthKey), []byte(cCryptKey))
+	slog.Info("cookie key", "cAuthKey", cAuthKey, "cCryptKey", cCryptKey)
 	store := sessions.NewCookieStore([]byte(cAuthKey), []byte(cCryptKey))
-	cbURL, err := url.Parse(result.config.RedirectURL)
+	//cbURL, err := url.Parse(result.config.RedirectURL)
 	if err != nil {
 		slog.Error("Unable to parse redirect URL", "error", err)
 		return nil, err
 	}
-	if cbURL.Scheme == "http" {
-		store.Options = &sessions.Options{
-			Secure: false,
-		}
+	// if cbURL.Scheme == "http" {
+	store.Options = &sessions.Options{
+		Secure: false,
 	}
+	// }
 	result.store = store
 	gob.Register(oauth2.Token{})
 	if result.config.SessionName == "" {
@@ -119,6 +120,7 @@ func NewOIDC(config OIDCConfig) (*OIDC, error) {
 }
 
 func (o *OIDC) authenticateRequest(w http.ResponseWriter, r *http.Request) error {
+	slog.Info("cookies", "cookies", r.Cookies())
 	session, err := o.session(w, r)
 	if err != nil {
 		return err
@@ -157,8 +159,10 @@ func (o *OIDC) CallbackHandler(h http.Handler) (string, http.Handler) {
 		if err != nil {
 			session.Options.MaxAge = -1
 			_ = session.Save(r, w)
-			middleware.ServeNextError(h, w, r, err)
+			slog.Error("Unable to get session", "error", err)
 			return
+			// middleware.ServeNextError(h, w, r, err)
+			// return
 		}
 
 		oauth2Token, err := o.oauth2Config.Exchange(context.Background(), code, oauth2.VerifierOption(session.Values["verifier"].(string)))
@@ -261,7 +265,8 @@ func (o *OIDC) LoginHandler() (path string, skipForm bool, h http.Handler) {
 		}
 		session, err := o.session(w, r)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			slog.Error("Unable to get session", "error", err)
+			// http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		session.Values["state"] = state
@@ -280,6 +285,10 @@ func (o *OIDC) LoginHandler() (path string, skipForm bool, h http.Handler) {
 
 		http.Redirect(w, r, url, http.StatusFound)
 	})
+}
+
+func (o *OIDC) LogoutURL() (url string) {
+	return o.config.LogoutURL
 }
 
 func (o *OIDC) session(w http.ResponseWriter, r *http.Request) (*sessions.Session, error) {

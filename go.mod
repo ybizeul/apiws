@@ -5,6 +5,7 @@ go 1.23.0
 require (
 	github.com/coreos/go-oidc v2.3.0+incompatible
 	github.com/golang-jwt/jwt v3.2.2+incompatible
+	github.com/gorilla/securecookie v1.1.2
 	github.com/gorilla/sessions v1.4.0
 	golang.org/x/crypto v0.37.0
 	golang.org/x/oauth2 v0.29.0
@@ -13,7 +14,6 @@ require (
 )
 
 require (
-	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/pquerna/cachecontrol v0.2.0 // indirect
 	github.com/stretchr/testify v1.10.0 // indirect
 	gopkg.in/go-jose/go-jose.v2 v2.6.3 // indirect
