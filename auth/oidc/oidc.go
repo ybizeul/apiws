@@ -131,8 +131,10 @@ func (o *OIDC) authenticateRequest(w http.ResponseWriter, r *http.Request) error
 			slog.Error("Unable to get token", "error", err)
 			return err
 		}
+
 		if newT.AccessToken != token.AccessToken {
-			session.Values["access_token"] = t
+			newT.AccessToken = "<REDACTED>"
+			session.Values["access_token"] = newT
 			_ = session.Save(r, w)
 		}
 	}
