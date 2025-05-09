@@ -30,10 +30,10 @@ func NewApp() (*App, error) {
 
     api.WithAuthentication(basic.NewBasic("admin","secret"))
 
-	api.AddPublicRoute("GET /status", statusHandler)
+    api.AddPublicRoute("GET /status", statusHandler)
 
-	api.AddRoute("GET /api/v1/resources", resourcesHandler)
-	api.AddRoute("GET /api/v1/resources/{resource}", resourceHandler)
+    api.AddRoute("GET /api/v1/resources", resourcesHandler)
+    api.AddRoute("GET /api/v1/resources/{resource}", resourceHandler)
 
     api.Start()
 }
