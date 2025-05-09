@@ -28,3 +28,10 @@ type CustomLoginHandler interface {
 	// to path
 	LoginHandler() (path string, skipForm bool, h http.Handler)
 }
+
+type CustomLogout interface {
+	// LoginHandler returns handler h associated to "GET path" pattern.
+	// If skipForm is true, the login form is not displayed and user redirected
+	// to path
+	LogoutURL() (url string)
+}

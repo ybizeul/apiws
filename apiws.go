@@ -174,6 +174,7 @@ func (a *APIWS) Start() {
 		l, skip, h := customLoginHandler.LoginHandler()
 		loginPath = l
 		skipForm = skip
+
 		a.AddPublicRoute("GET "+loginPath, h, nil)
 	} else {
 		loginPath = "/login"
@@ -188,14 +189,21 @@ func (a *APIWS) Start() {
 		a.AddPublicRoute("POST /login", loginHandler, nil)
 	}
 
+	logoutPath := "/logout"
+
+	if l, ok := a.auth.(auth.CustomLogout); ok {
+		logoutPath = l.LogoutURL()
+	}
+
 	a.AddPublicRoute("GET /auth", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user, _ := auth.UserForRequest(r)
 
 		response := struct {
 			User          string `json:"user"`
 			LoginURL      string `json:"loginUrl,omitempty"`
+			LogoutURL     string `json:"logoutUrl,omitempty"`
 			SkipLoginForm bool   `json:"skipLoginForm"`
-		}{user, loginPath, skipForm}
+		}{user, loginPath, logoutPath, skipForm}
 
 		err := json.NewEncoder(w).Encode(response)
 		if err != nil {

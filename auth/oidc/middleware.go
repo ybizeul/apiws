@@ -2,6 +2,7 @@ package oidc
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/ybizeul/apiws/auth/middleware"
@@ -20,10 +21,12 @@ func (a OIDCMiddleware) AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		store, err := a.OIDC.store.Get(r, a.OIDC.config.SessionName)
+		session, err := a.OIDC.session(w, r)
 		if err != nil {
-			middleware.ServeNextError(next, w, r, err)
+			slog.Error("Unable to get session", "error", err, "url", r.URL.String())
 			return
+			// middleware.ServeNextError(next, w, r, err)
+			// return
 		}
 
 		err = a.OIDC.authenticateRequest(w, r)
@@ -35,12 +38,11 @@ func (a OIDCMiddleware) AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		if store.Values["username"] != nil && store.Values["username"] != "" {
-			middleware.ServeNextAuthenticated(store.Values["username"].(string), next, w, r)
+		if session.Values["username"] != nil && session.Values["username"] != "" {
+			middleware.ServeNextAuthenticated(session.Values["username"].(string), next, w, r)
 			return
 		}
 
 		next.ServeHTTP(w, r)
-		//ServeNextError(next, w, r, auth.ErrAuthenticationMissingCredentials)
 	})
 }
