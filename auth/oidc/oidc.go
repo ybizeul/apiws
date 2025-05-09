@@ -27,15 +27,16 @@ var (
 
 // OIDCConfig is the configuration for the OIDC backend.
 type OIDCConfig struct {
-	ProviderURL    string `yaml:"provider_url"`
-	ClientID       string `yaml:"client_id"`
-	ClientSecret   string `yaml:"client_secret"`
-	RedirectURL    string `yaml:"redirect_url"`
-	LogoutURL      string `yaml:"logout_url"`
-	CookieSecure   bool   `yaml:"secure"`
-	CookieAuthKey  string `yaml:"cookie_auth_key"`
-	CookieCryptKey string `yaml:"cookie_crypt_key"`
-	SessionName    string `yaml:"session_name"`
+	ProviderURL  string `yaml:"provider_url"`
+	ClientID     string `yaml:"client_id"`
+	ClientSecret string `yaml:"client_secret"`
+	RedirectURL  string `yaml:"redirect_url"`
+
+	LogoutURL string `yaml:"logout_url"` // URL to redirect on logout
+
+	SessionName     string `yaml:"session_name"`     // Name of the session cookie
+	SessionAuthKey  string `yaml:"cookie_auth_key"`  // a 32 byte random key for the cookie auth, if empty a random key is generated
+	SessionCryptKey string `yaml:"cookie_crypt_key"` // a 32 byte key for the cookie crypt, if empty a random key is generated
 }
 
 // OIDC is a backend for authentication using OpenID Connect.
@@ -80,38 +81,50 @@ func NewOIDC(config OIDCConfig) (*OIDC, error) {
 		// Discovery returns the OAuth2 endpoints.
 		Endpoint: result.provider.Endpoint(),
 
-		Scopes: []string{oidc.ScopeOpenID, oidc.ScopeOfflineAccess, "profile", "email"},
+		Scopes: []string{
+			oidc.ScopeOpenID,
+			oidc.ScopeOfflineAccess,
+			"profile",
+			"email",
+		},
 	}
 
 	result.OIDCMiddleware = OIDCMiddleware{
 		OIDC: result,
 	}
 
-	cAuthKey := config.CookieAuthKey
+	cAuthKey := config.SessionAuthKey
 	if cAuthKey == "" {
 		cAuthKey = string(securecookie.GenerateRandomKey(32))
 	}
 
-	cCryptKey := config.CookieCryptKey
+	cCryptKey := config.SessionCryptKey
 	if cCryptKey == "" {
 		cCryptKey = string(securecookie.GenerateRandomKey(32))
 	}
 
-	//result.store = sessions.NewFilesystemStore("sessions", []byte(cAuthKey), []byte(cCryptKey))
-	slog.Info("cookie key", "cAuthKey", cAuthKey, "cCryptKey", cCryptKey)
 	store := sessions.NewCookieStore([]byte(cAuthKey), []byte(cCryptKey))
-	//cbURL, err := url.Parse(result.config.RedirectURL)
+
+	// If the callbacl URL is http, it is very unlikely we are running over
+	// https, so we set the cookie to be insecure.
+	cbURL, err := url.Parse(result.config.RedirectURL)
 	if err != nil {
 		slog.Error("Unable to parse redirect URL", "error", err)
 		return nil, err
 	}
-	// if cbURL.Scheme == "http" {
-	store.Options = &sessions.Options{
-		Secure: false,
+
+	if cbURL.Scheme == "http" {
+		store.Options = &sessions.Options{
+			Secure: false,
+		}
 	}
-	// }
+
 	result.store = store
+
+	// Configure gob for token serialization
 	gob.Register(oauth2.Token{})
+
+	// Set default session name
 	if result.config.SessionName == "" {
 		result.config.SessionName = "apiws"
 	}
@@ -120,11 +133,11 @@ func NewOIDC(config OIDCConfig) (*OIDC, error) {
 }
 
 func (o *OIDC) authenticateRequest(w http.ResponseWriter, r *http.Request) error {
-	slog.Info("cookies", "cookies", r.Cookies())
-	session, err := o.session(w, r)
+	session, err := o.session(r)
 	if err != nil {
 		return err
 	}
+
 	token, ok := session.Values["access_token"].(oauth2.Token)
 	if ok {
 		t := o.OIDC.oauth2Config.TokenSource(context.Background(), &token)
@@ -155,7 +168,7 @@ func (o *OIDC) CallbackHandler(h http.Handler) (string, http.Handler) {
 		code := r.URL.Query().Get("code")
 
 		// Check nonce and state
-		session, err := o.session(w, r)
+		session, err := o.session(r)
 		if err != nil {
 			session.Options.MaxAge = -1
 			_ = session.Save(r, w)
@@ -263,7 +276,7 @@ func (o *OIDC) LoginHandler() (path string, skipForm bool, h http.Handler) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		session, err := o.session(w, r)
+		session, err := o.session(r)
 		if err != nil {
 			slog.Error("Unable to get session", "error", err)
 			// http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -291,12 +304,15 @@ func (o *OIDC) LogoutURL() (url string) {
 	return o.config.LogoutURL
 }
 
-func (o *OIDC) session(w http.ResponseWriter, r *http.Request) (*sessions.Session, error) {
+func (o *OIDC) session(r *http.Request) (*sessions.Session, error) {
 	session, err := o.store.Get(r, o.config.SessionName)
 	if err != nil {
-		w.Header().Set("Set-Cookie", o.config.SessionName+"=deleted; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/")
-		http.Redirect(w, r, "/login", http.StatusFound)
-		return nil, err
+		// Force creation of a new cookie if the session is not found
+		session, err := o.store.New(&http.Request{}, o.config.SessionName)
+		if err != nil {
+			slog.Error("Unable to create session", "error", err)
+		}
+		return session, err
 	}
 	return session, nil
 }
