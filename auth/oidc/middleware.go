@@ -21,7 +21,7 @@ func (a OIDCMiddleware) AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		session, err := a.OIDC.session(w, r)
+		session, err := a.OIDC.session(r)
 		if err != nil {
 			slog.Error("Unable to get session", "error", err, "url", r.URL.String())
 			return

@@ -1,5 +1,5 @@
 /*
-Basic authentication provides a simple username/password authentication assed
+Basic authentication provides a simple username/password authentication passed
 in authentication header.
 */
 package basic
