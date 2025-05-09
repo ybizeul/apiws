@@ -5,23 +5,19 @@ import (
 	"net/http"
 )
 
-type APIResult struct {
+type apiResult struct {
 	Status  string `json:"status"`
 	Message string `json:"message,omitempty"`
 }
 
-func WriteError(w http.ResponseWriter, code int, msg string) {
+func writeError(w http.ResponseWriter, code int, msg string) {
 	w.WriteHeader(code)
-	_ = json.NewEncoder(w).Encode(APIResult{Status: "error", Message: msg})
+	_ = json.NewEncoder(w).Encode(apiResult{Status: "error", Message: msg})
 }
 
-func WriteSuccessJSON(w http.ResponseWriter, body any) {
+func writeSuccessJSON(w http.ResponseWriter, body any) {
 	err := json.NewEncoder(w).Encode(body)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, err.Error())
 	}
-}
-
-func WriteSuccess(w http.ResponseWriter, message string) {
-	WriteSuccessJSON(w, APIResult{Status: "success", Message: message})
 }

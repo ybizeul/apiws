@@ -1,4 +1,4 @@
-package auth
+package jwt
 
 import (
 	"errors"
@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt"
+	"github.com/ybizeul/apiws/auth"
+	"github.com/ybizeul/apiws/auth/middleware"
 )
 
 var (
@@ -31,29 +33,28 @@ func NewJWTAuthMiddleware(hmac string) *JWTAuthMiddleware {
 }
 
 func (j JWTAuthMiddleware) Middleware(next http.Handler) http.Handler {
-
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		// Check JWT cookies
 		shortCookie, _ := r.Cookie("X-Token")
 		longCookie, _ := r.Cookie("X-Token-Refresh")
 
-		upstreamUser, ok := AuthForRequest(r)
+		upstreamUser, _ := auth.UserForRequest(r)
 
-		if (shortCookie == nil && longCookie == nil) || (upstreamUser != "" && ok) {
+		if (shortCookie == nil && longCookie == nil) || (upstreamUser != "") {
 			// Check that authentication has been previoulsy approved
 			// If request is already authenticated, generate a JWT token
-			if ok {
+			if upstreamUser != "" {
 				short, long, err := j.generateTokens(upstreamUser)
 				if err != nil {
-					ServeNextError(next, w, r, err)
+					middleware.ServeNextError(next, w, r, err)
 					return
 				}
 
 				http.SetCookie(w, &http.Cookie{Name: "X-Token", Value: short, Path: "/", Expires: time.Now().Add(shortTokenMinutesExpire)})
 				http.SetCookie(w, &http.Cookie{Name: "X-Token-Refresh", Value: long, Path: "/", Expires: time.Now().Add(longTokenMinutesExpire)})
 
-				ServeNextAuthenticated(upstreamUser, next, w, r)
+				middleware.ServeNextAuthenticated(upstreamUser, next, w, r)
 				return
 			}
 
@@ -61,7 +62,7 @@ func (j JWTAuthMiddleware) Middleware(next http.Handler) http.Handler {
 			http.SetCookie(w, &http.Cookie{Name: "X-Token", Value: "deleted", Path: "/", Expires: time.Unix(0, 0)})
 			http.SetCookie(w, &http.Cookie{Name: "X-Token-Refresh", Value: "deleted", Path: "/", Expires: time.Unix(0, 0)})
 
-			ServeNextError(next, w, r, JWTAuthNoAuthorizationHeader)
+			middleware.ServeNextError(next, w, r, JWTAuthNoAuthorizationHeader)
 			return
 		}
 
@@ -86,36 +87,36 @@ func (j JWTAuthMiddleware) Middleware(next http.Handler) http.Handler {
 		if err != nil {
 			http.SetCookie(w, &http.Cookie{Name: "X-Token", Value: "deleted", Path: "/", Expires: time.Unix(0, 0)})
 			http.SetCookie(w, &http.Cookie{Name: "X-Token-Refresh", Value: "deleted", Path: "/", Expires: time.Unix(0, 0)})
-			ServeNextError(next, w, r, fmt.Errorf("Unable to parse token: %w", err))
+			middleware.ServeNextError(next, w, r, fmt.Errorf("Unable to parse token: %w", err))
 			return
 		}
 
 		if !token.Valid {
 			http.SetCookie(w, &http.Cookie{Name: "X-Token", Value: "deleted", Path: "/", Expires: time.Unix(0, 0)})
 			http.SetCookie(w, &http.Cookie{Name: "X-Token-Refresh", Value: "deleted", Path: "/", Expires: time.Unix(0, 0)})
-			ServeNextError(next, w, r, errors.New("Invalid token"))
+			middleware.ServeNextError(next, w, r, errors.New("Invalid token"))
 			return
 		}
 
 		if claims, ok := token.Claims.(jwt.MapClaims); ok {
 			user, ok := claims["sub"].(string)
 			if !ok || user == "" {
-				ServeNextError(next, w, r, JWTAuthNoSubClaim)
+				middleware.ServeNextError(next, w, r, JWTAuthNoSubClaim)
 				return
 			}
 			_, ok = claims["refresh"]
 			if ok {
 				if !ok {
-					ServeNextError(next, w, r, JWTAuthNoSubClaim)
+					middleware.ServeNextError(next, w, r, JWTAuthNoSubClaim)
 				}
 				short, long, err := j.generateTokens(user)
 				if err != nil {
-					ServeNextError(next, w, r, err)
+					middleware.ServeNextError(next, w, r, err)
 				}
 				http.SetCookie(w, &http.Cookie{Name: "X-Token", Value: short, Path: "/", Expires: time.Now().Add(shortTokenMinutesExpire)})
 				http.SetCookie(w, &http.Cookie{Name: "X-Token-Refresh", Value: long, Path: "/", Expires: time.Now().Add(longTokenMinutesExpire)})
 			}
-			ServeNextAuthenticated(user, next, w, r)
+			middleware.ServeNextAuthenticated(user, next, w, r)
 		} else {
 			slog.Error("jwt decoding returned an invalid claim")
 		}

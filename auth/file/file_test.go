@@ -1,4 +1,4 @@
-package authentication
+package file
 
 import (
 	"errors"
@@ -7,11 +7,7 @@ import (
 )
 
 func TestAuthentication(t *testing.T) {
-	c := FileConfig{
-		Path: "file_testdata/users.yml",
-	}
-
-	a, err := NewFile(c)
+	a, err := NewFile("file_testdata/users.yml")
 
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
@@ -20,7 +16,7 @@ func TestAuthentication(t *testing.T) {
 	r, _ := http.NewRequest("GET", "http://localhost:8080", nil)
 	r.SetBasicAuth("admin", "hupload")
 
-	err = a.AuthenticateRequest(nil, r)
+	err = a.authenticateRequest(nil, r)
 
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
@@ -29,30 +25,26 @@ func TestAuthentication(t *testing.T) {
 	r, _ = http.NewRequest("GET", "http://localhost:8080", nil)
 	r.SetBasicAuth("admin", "random")
 
-	err = a.AuthenticateRequest(nil, r)
+	err = a.authenticateRequest(nil, r)
 
-	if err != ErrAuthenticationBadCredentials {
+	if err != ErrBadCredentials {
 		t.Errorf("Expected ErrAuthenticationBadCredentials, got %v", err)
 	}
 
 	r, _ = http.NewRequest("GET", "http://localhost:8080", nil)
 	r.SetBasicAuth("nonexistant", "random")
 
-	err = a.AuthenticateRequest(nil, r)
+	err = a.authenticateRequest(nil, r)
 
-	if err != ErrAuthenticationBadCredentials {
+	if err != ErrBadCredentials {
 		t.Errorf("Expected ErrAuthenticationBadCredentials, got %v", err)
 	}
 }
 
 func TestAuthenticationInexistantUsersFile(t *testing.T) {
-	c := FileConfig{
-		Path: "file_testdata/users_inexistant.yml",
-	}
+	_, err := NewFile("file_testdata/users_inexistant.yml")
 
-	_, err := NewFile(c)
-
-	if !errors.Is(err, ErrAuthenticationMissingUsersFile) {
+	if !errors.Is(err, ErrMissingUsersFile) {
 		t.Errorf("Expected error, got nil")
 	}
 }

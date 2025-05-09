@@ -1,4 +1,4 @@
-package auth
+package middleware
 
 import (
 	"errors"
@@ -7,7 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/ybizeul/apiws/authentication"
+	"github.com/ybizeul/apiws/auth"
+	"github.com/ybizeul/apiws/internal/middleware/confirm"
 )
 
 func TestServeNextAuthenticated(t *testing.T) {
@@ -18,17 +19,17 @@ func TestServeNextAuthenticated(t *testing.T) {
 	}
 
 	fn1 := func(w http.ResponseWriter, r *http.Request) {
-		s := r.Context().Value(authentication.AuthStatusKey).(authentication.AuthStatus)
-		c := s.Error
-		if c != nil {
-			t.Errorf("Expected nil, got %v", c)
+		authStatus, ok := auth.AuthForRequest(r)
+
+		if authStatus.Error != nil {
+			t.Errorf("Expected nil, got %+v", authStatus.Error)
 		}
-		if !s.Authenticated {
-			t.Errorf("Expected AuthStatusSuccess, got %v", c)
+		if !authStatus.Authenticated || !ok {
+			t.Errorf("Expected AuthStatusSuccess, got %+v", authStatus)
 		}
-		u := s.User
+		u := authStatus.User
 		if u != "user" {
-			t.Errorf("Expected admin, got %v", u)
+			t.Errorf("Expected admin, got %s", authStatus.User)
 		}
 	}
 
@@ -42,24 +43,25 @@ func TestServeNextAuthenticated(t *testing.T) {
 var fakeError = errors.New("Some Error")
 
 func TestServeNextAuthFailed(t *testing.T) {
-	successMiddleware := func(next http.Handler) http.Handler {
+	failMiddleware := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ServeNextError(next, w, r, fakeError)
 		})
 	}
 
 	fn1 := func(w http.ResponseWriter, r *http.Request) {
-		s := r.Context().Value(authentication.AuthStatusKey).(authentication.AuthStatus)
-		if s.Error == nil {
-			t.Errorf("Expected error, got nil")
+		authStatus, ok := auth.AuthForRequest(r)
+
+		if authStatus.Error == nil {
+			t.Errorf("Expected error, got nil, %t", ok)
 		} else {
-			if !errors.Is(s.Error, fakeError) {
-				t.Errorf("Expected fakeError, got %v", s.Error)
+			if !errors.Is(authStatus.Error, fakeError) {
+				t.Errorf("Expected fakeError, got %+v", authStatus.Error)
 			}
 		}
 	}
 
-	h1 := successMiddleware(http.HandlerFunc(fn1))
+	h1 := failMiddleware(http.HandlerFunc(fn1))
 
 	req, _ := http.NewRequest("GET", "https://example.com/", nil)
 
@@ -77,9 +79,7 @@ func TestConfirmAuthentication(t *testing.T) {
 		_, _ = w.Write([]byte("OK"))
 	}
 
-	c := ConfirmAuthenticator{}
-
-	h1 := successMiddleware(c.Middleware(http.HandlerFunc(fn1)))
+	h1 := successMiddleware(confirm.ConfirmMiddleware("realm", http.HandlerFunc(fn1)))
 
 	req, _ := http.NewRequest("GET", "https://example.com/", nil)
 
@@ -93,7 +93,7 @@ func TestConfirmAuthentication(t *testing.T) {
 }
 
 func TestFailedAuthentication(t *testing.T) {
-	successMiddleware := func(next http.Handler) http.Handler {
+	failMiddleware := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ServeNextError(next, w, r, fakeError)
 		})
@@ -103,9 +103,7 @@ func TestFailedAuthentication(t *testing.T) {
 		_, _ = w.Write([]byte("OK"))
 	}
 
-	c := ConfirmAuthenticator{}
-
-	h1 := successMiddleware(c.Middleware(http.HandlerFunc(fn1)))
+	h1 := failMiddleware(confirm.ConfirmMiddleware("realm", http.HandlerFunc(fn1)))
 
 	req, _ := http.NewRequest("GET", "https://example.com/", nil)
 
@@ -116,8 +114,9 @@ func TestFailedAuthentication(t *testing.T) {
 	if r.Code != http.StatusUnauthorized {
 		t.Errorf("Expected 401, got %v", r.Code)
 	}
+	expected := "{\"errors\":[\"Some Error\"]}"
 	b, _ := io.ReadAll(r.Result().Body)
-	if string(b) != "{\"errors\":[\"Some Error\"]}" {
-		t.Errorf("Expected Unauthorized, got %v", string(b))
+	if string(b) != expected {
+		t.Errorf("Expected %s, got %v", expected, string(b))
 	}
 }

@@ -1,4 +1,4 @@
-package auth
+package jwt
 
 import (
 	"io"
@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/ybizeul/apiws/authentication"
+	"github.com/ybizeul/apiws/auth"
 )
 
 func TestJWTAuth(t *testing.T) {
@@ -24,18 +24,18 @@ func TestJWTAuth(t *testing.T) {
 	}
 
 	fn1 := func(w http.ResponseWriter, r *http.Request) {
-		s, ok := r.Context().Value(authentication.AuthStatusKey).(authentication.AuthStatus)
+		authStatus, ok := auth.AuthForRequest(r)
 		if !ok {
 			t.Errorf("Expected AuthStatus, got nil")
 		}
-		if s.Error != nil {
-			t.Errorf("Expected nil, got %v", s.Error)
+		if authStatus.Error != nil {
+			t.Errorf("Expected nil, got %v", authStatus.Error)
 		}
-		if s.Authenticated == false {
-			t.Errorf("Expected AuthStatusSuccess, got %t", s.Authenticated)
+		if authStatus.Authenticated == false {
+			t.Errorf("Expected AuthStatusSuccess, got %t", authStatus.Authenticated)
 		}
-		if s.User != "admin" {
-			t.Errorf("Expected admin, got %v", s.User)
+		if authStatus.User != "admin" {
+			t.Errorf("Expected admin, got %v", authStatus.User)
 		}
 		_, _ = w.Write([]byte("OK"))
 	}
@@ -79,11 +79,11 @@ func TestJWTAuthBadSecret(t *testing.T) {
 	}
 
 	fn1 := func(w http.ResponseWriter, r *http.Request) {
-		s, ok := r.Context().Value(authentication.AuthStatusKey).(authentication.AuthStatus)
+		authStatus, ok := auth.AuthForRequest(r)
 		if !ok {
 			t.Errorf("Expected AuthStatus, got nil")
 		}
-		if s.Error == nil {
+		if authStatus.Error == nil {
 			t.Errorf("Expected error, got nil")
 		}
 		w.WriteHeader(http.StatusUnauthorized)
